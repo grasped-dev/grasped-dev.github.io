@@ -14,41 +14,10 @@ const LETTER_VALUES = {
   S: 1, T: 1, U: 1, V: 4, W: 4, X: 8, Y: 4, Z: 10
 };
 
-// English word list for validation (simplified for demo)
-// In a full implementation, you would import a comprehensive dictionary
-const WORD_LIST = {
-  "apple": true, "banana": true, "cat": true, "dog": true, "elephant": true,
-  "fox": true, "giraffe": true, "hat": true, "ice": true, "jacket": true,
-  "kite": true, "lamp": true, "mouse": true, "nest": true, "orange": true,
-  "pen": true, "queen": true, "rat": true, "sun": true, "tree": true,
-  "umbrella": true, "vase": true, "water": true, "xylophone": true, "yacht": true,
-  "zebra": true, "car": true, "ball": true, "book": true, "door": true,
-  "ear": true, "fish": true, "game": true, "hand": true, "ink": true, 
-  "jar": true, "key": true, "leg": true, "man": true, "nose": true,
-  "owl": true, "pig": true, "quilt": true, "road": true, "sea": true,
-  "toe": true, "van": true, "wing": true, "box": true, "yak": true,
-  "zoo": true, "and": true, "bat": true, "cab": true, "dam": true,
-  "eel": true, "fan": true, "gun": true, "hat": true, "inn": true,
-  "joy": true, "kit": true, "lid": true, "map": true, "net": true,
-  "oil": true, "pat": true, "red": true, "sad": true, "tag": true,
-  "use": true, "vet": true, "win": true, "yes": true, "zip": true,
-  "ace": true, "bad": true, "cup": true, "dry": true, "end": true,
-  "fat": true, "gas": true, "hot": true, "ice": true, "job": true,
-  "kid": true, "low": true, "mad": true, "nap": true, "odd": true,
-  "pal": true, "ran": true, "sit": true, "top": true, "but": true,
-  "the": true, "and": true, "you": true, "for": true, "not": true,
-  "all": true, "new": true, "day": true, "get": true, "was": true,
-  "can": true, "out": true, "see": true, "use": true, "now": true,
-  "who": true, "may": true, "way": true, "did": true, "big": true,
-  "old": true, "ask": true, "few": true, "far": true, "let": true,
-  "run": true, "try": true, "set": true, "put": true, "any": true,
-  "his": true, "her": true, "him": true, "our": true, "she": true
-};
-
 // Utility function for class name merging
 const cn = (...classes) => classes.filter(Boolean).join(' ');
 
-// ShootingStars component
+// ShootingStars component for background animation
 const ShootingStars = ({
   minSpeed = 10,
   maxSpeed = 30,
@@ -171,8 +140,9 @@ const ShootingStars = ({
   );
 };
 
+// Main game component
 const LetterDropGame = () => {
-  // Game state
+  // Game state variables
   const [grid, setGrid] = useState(Array(8).fill().map(() => Array(8).fill(null)));
   const [currentLetter, setCurrentLetter] = useState('');
   const [nextLetter, setNextLetter] = useState('');
@@ -183,8 +153,10 @@ const LetterDropGame = () => {
   const [gameOver, setGameOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [wordStatus, setWordStatus] = useState(null); // null, 'valid', or 'invalid'
+  const [wordDictionary, setWordDictionary] = useState({});
+  const [isDictionaryLoaded, setIsDictionaryLoaded] = useState(false);
 
-  // Generate a random letter based on frequency distribution
+  // Generate a random letter based on frequency
   const generateRandomLetter = useCallback(() => {
     const letters = [];
     Object.entries(LETTER_FREQUENCIES).forEach(([letter, frequency]) => {
@@ -196,7 +168,7 @@ const LetterDropGame = () => {
     return letters[randomIndex];
   }, []);
 
-  // Initialize the game
+  // Initialize current and next letters on mount
   useEffect(() => {
     if (!currentLetter) {
       setCurrentLetter(generateRandomLetter());
@@ -204,7 +176,18 @@ const LetterDropGame = () => {
     }
   }, [currentLetter, generateRandomLetter]);
 
-  // Check if the game is over (all columns are full)
+  // Fetch the word dictionary from public folder
+  useEffect(() => {
+    fetch('/words_dictionary.json')
+      .then(response => response.json())
+      .then(data => {
+        setWordDictionary(data);
+        setIsDictionaryLoaded(true);
+      })
+      .catch(error => console.error('Error loading dictionary:', error));
+  }, []);
+
+  // Check if the game is over
   const checkGameOver = useCallback((currentGrid) => {
     const isGameOver = currentGrid.every(column => column[0] !== null);
     setGameOver(isGameOver);
@@ -216,26 +199,15 @@ const LetterDropGame = () => {
 
     const newGrid = [...grid];
     const column = newGrid[selectedColumn];
-
-    // Find the lowest empty slot in the column
     let rowIndex = 7;
     while (rowIndex >= 0 && column[rowIndex] !== null) {
       rowIndex--;
     }
+    if (rowIndex < 0) return;
 
-    // If column is full, show warning and return
-    if (rowIndex < 0) {
-      return;
-    }
-
-    // Drop the letter
     column[rowIndex] = currentLetter;
     setGrid(newGrid);
-
-    // Check if any column is full after this drop
     checkGameOver(newGrid);
-
-    // Move to the next letter
     setCurrentLetter(nextLetter);
     setNextLetter(generateRandomLetter());
   }, [gameOver, grid, selectedColumn, currentLetter, nextLetter, generateRandomLetter, checkGameOver]);
@@ -244,7 +216,6 @@ const LetterDropGame = () => {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (gameOver) return;
-
       switch (e.key) {
         case 'ArrowLeft':
           e.preventDefault();
@@ -255,7 +226,7 @@ const LetterDropGame = () => {
           setSelectedColumn(prev => Math.min(7, prev + 1));
           break;
         case 'ArrowDown':
-        case ' ': // Space bar
+        case ' ':
           e.preventDefault();
           dropLetter();
           break;
@@ -263,123 +234,85 @@ const LetterDropGame = () => {
           break;
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gameOver, dropLetter]);
 
-  // Handle cell click for word selection
+  // Word selection handlers
   const handleCellMouseDown = (colIndex, rowIndex) => {
     if (grid[colIndex][rowIndex] === null) return;
-    
     setIsDragging(true);
     setSelectedCells([{ col: colIndex, row: rowIndex }]);
   };
 
-  // Handle mouse move for word selection
   const handleCellMouseEnter = (colIndex, rowIndex) => {
     if (!isDragging || grid[colIndex][rowIndex] === null) return;
-
-    // Check if this cell is adjacent to the last selected cell
     const lastCell = selectedCells[selectedCells.length - 1];
-    const isAdjacent = 
+    const isAdjacent =
       (Math.abs(colIndex - lastCell.col) <= 1 && Math.abs(rowIndex - lastCell.row) <= 1);
-
-    if (isAdjacent) {
-      // Check if this cell is already selected
-      const alreadySelected = selectedCells.some(
-        cell => cell.col === colIndex && cell.row === rowIndex
-      );
-
-      if (!alreadySelected) {
-        setSelectedCells([...selectedCells, { col: colIndex, row: rowIndex }]);
-      }
+    if (isAdjacent && !selectedCells.some(cell => cell.col === colIndex && cell.row === rowIndex)) {
+      setSelectedCells([...selectedCells, { col: colIndex, row: rowIndex }]);
     }
   };
 
-  // Handle mouse up to end word selection
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
+  const handleMouseUp = () => setIsDragging(false);
 
-  // Get the selected word as a string
-  const getSelectedWord = () => {
-    return selectedCells.map(cell => grid[cell.col][cell.row]).join('').toLowerCase();
-  };
+  const getSelectedWord = () =>
+    selectedCells.map(cell => grid[cell.col][cell.row]).join('').toLowerCase();
 
   // Submit the selected word
   const submitWord = () => {
     const word = getSelectedWord();
     console.log("Submitting word:", word);
-    
-    // Word must be at least 3 letters
+
     if (word.length < 3) {
       setWordStatus('invalid');
       setTimeout(() => setWordStatus(null), 800);
       return;
     }
 
-    // Check if word is valid
-    if (WORD_LIST[word]) {
+    if (wordDictionary[word]) {
       setWordStatus('valid');
       console.log("Word is valid!");
-      
-      // Calculate score
       const wordScore = selectedCells.reduce(
-        (sum, cell) => sum + LETTER_VALUES[grid[cell.col][cell.row]], 0
+        (sum, cell) => sum + LETTER_VALUES[grid[cell.col][cell.row]],
+        0
       );
-      
       const newScore = score + wordScore;
       setScore(newScore);
       console.log("New score:", newScore);
-      
-      // Award Delete Chance for every 10 points
+
       const newDeleteChances = Math.floor(newScore / 10) - Math.floor(score / 10);
-      if (newDeleteChances > 0) {
-        setDeleteChances(prev => prev + newDeleteChances);
-      }
-      
-      // Create a new grid copy
+      if (newDeleteChances > 0) setDeleteChances(prev => prev + newDeleteChances);
+
       const newGrid = JSON.parse(JSON.stringify(grid));
-      
-      // Remove the letters and apply gravity
       selectedCells.forEach(cell => {
         for (let row = cell.row; row > 0; row--) {
           newGrid[cell.col][row] = newGrid[cell.col][row - 1];
         }
         newGrid[cell.col][0] = null;
       });
-      
-      // Update the grid state
       setGrid(newGrid);
-      
-      // Reset word status after animation
       setTimeout(() => setWordStatus(null), 800);
     } else {
       console.log("Word is invalid!");
       setWordStatus('invalid');
       setTimeout(() => setWordStatus(null), 800);
     }
-    
-    // Clear selection
     setSelectedCells([]);
   };
 
-  // Use a Delete Chance to remove a letter
+  // Use delete chance to remove a letter
   const useDeleteChance = () => {
     if (deleteChances <= 0 || selectedCells.length !== 1) return;
-    
     const cell = selectedCells[0];
     if (grid[cell.col][cell.row] === null) return;
-    
+
     const newGrid = [...grid];
-    
-    // Apply gravity effect
     for (let row = cell.row; row > 0; row--) {
       newGrid[cell.col][row] = newGrid[cell.col][row - 1];
     }
     newGrid[cell.col][0] = null;
-    
     setGrid(newGrid);
     setDeleteChances(prev => prev - 1);
     setSelectedCells([]);
@@ -398,50 +331,31 @@ const LetterDropGame = () => {
     setWordStatus(null);
   };
 
-  // Render the game
+  // Render the game UI
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-black p-4 relative overflow-hidden">
-      {/* Background with stars */}
+      {/* Background */}
       <div className="absolute inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.15)_0%,rgba(0,0,0,0)_80%)]" />
         <div className="stars absolute inset-0" />
       </div>
-      
-      {/* Shooting stars effects */}
-      <ShootingStars
-        starColor="#9E00FF"
-        trailColor="#2EB9DF"
-        minSpeed={15}
-        maxSpeed={35}
-        minDelay={1000}
-        maxDelay={3000}
-      />
-      <ShootingStars
-        starColor="#FF0099"
-        trailColor="#FFB800"
-        minSpeed={10}
-        maxSpeed={25}
-        minDelay={2000}
-        maxDelay={4000}
-      />
-      <ShootingStars
-        starColor="#00FF9E"
-        trailColor="#00B8FF"
-        minSpeed={20}
-        maxSpeed={40}
-        minDelay={1500}
-        maxDelay={3500}
-      />
-      
+
+      {/* Shooting stars */}
+      <ShootingStars starColor="#9E00FF" trailColor="#2EB9DF" minSpeed={15} maxSpeed={35} minDelay={1000} maxDelay={3000} />
+      <ShootingStars starColor="#FF0099" trailColor="#FFB800" minSpeed={10} maxSpeed={25} minDelay={2000} maxDelay={4000} />
+      <ShootingStars starColor="#00FF9E" trailColor="#00B8FF" minSpeed={20} maxSpeed={40} minDelay={1500} maxDelay={3500} />
+
+      {/* Loading message */}
+      {!isDictionaryLoaded && <p className="text-white">Loading dictionary...</p>}
+
       <h1 className="text-3xl font-bold mb-4 text-white relative z-10">Letter Drop</h1>
-      
-      {/* Game controls and info */}
+
+      {/* Score and next letter */}
       <div className="mb-4 flex items-center justify-between w-full max-w-md relative z-10">
         <div>
           <p className="text-lg font-semibold text-white">Score: {score}</p>
           <p className="text-white">Delete Chances: {deleteChances}</p>
         </div>
-        
         <div className="flex flex-col items-center">
           <p className="mb-1 text-white">Next:</p>
           <div className="w-8 h-8 flex items-center justify-center bg-gray-200 rounded">
@@ -449,10 +363,10 @@ const LetterDropGame = () => {
           </div>
         </div>
       </div>
-      
-      {/* Current letter and column selection */}
+
+      {/* Current letter */}
       <div className="relative mb-4 w-96 flex justify-start h-12">
-        <div 
+        <div
           className="w-12 h-12 flex flex-col items-center justify-center bg-blue-500 text-white font-bold rounded-full text-xl absolute bottom-0 transition-all duration-150"
           style={{ left: `${selectedColumn * 48}px` }}
         >
@@ -460,9 +374,9 @@ const LetterDropGame = () => {
           <span className="text-xs leading-none mt-1">{LETTER_VALUES[currentLetter]}</span>
         </div>
       </div>
-      
+
       {/* Game grid */}
-      <div 
+      <div
         className="relative w-96 bg-white bg-opacity-10 rounded shadow-lg overflow-hidden backdrop-blur-sm z-10"
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
@@ -474,7 +388,6 @@ const LetterDropGame = () => {
                 const isSelected = selectedCells.some(
                   selectedCell => selectedCell.col === colIndex && selectedCell.row === rowIndex
                 );
-                
                 const cellStyle = isSelected
                   ? wordStatus === 'valid'
                     ? 'bg-green-300 bg-opacity-70'
@@ -482,7 +395,6 @@ const LetterDropGame = () => {
                       ? 'bg-red-300 bg-opacity-70'
                       : 'bg-blue-200 bg-opacity-70'
                   : 'bg-black bg-opacity-40';
-                
                 return (
                   <div
                     key={`${colIndex}-${rowIndex}`}
@@ -491,31 +403,27 @@ const LetterDropGame = () => {
                     onMouseEnter={() => handleCellMouseEnter(colIndex, rowIndex)}
                     onClick={() => setSelectedColumn(colIndex)}
                   >
-                    {cell ? (
+                    {cell && (
                       <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex flex-col items-center justify-center shadow-lg">
                         <span className="text-lg font-bold leading-none">{cell}</span>
                         <span className="text-xs leading-none mt-1">{LETTER_VALUES[cell]}</span>
                       </div>
-                    ) : null}
+                    )}
                   </div>
                 );
               })}
             </div>
           ))}
         </div>
-        
-        {/* Column highlighter */}
-        <div 
+        <div
           className="absolute top-0 w-12 h-full bg-yellow-100 opacity-30 pointer-events-none transition-all duration-150"
           style={{ left: `${selectedColumn * 3}rem` }}
-        ></div>
-        
-        {/* Column full indicators */}
+        />
         <div className="absolute top-0 left-0 w-full">
           {grid.map((column, colIndex) => (
             column[0] !== null && (
-              <div 
-                key={`full-${colIndex}`} 
+              <div
+                key={`full-${colIndex}`}
                 className="absolute top-0 text-xs text-white bg-red-500 p-1"
                 style={{ left: `${colIndex * 3}rem` }}
               >
@@ -525,8 +433,8 @@ const LetterDropGame = () => {
           ))}
         </div>
       </div>
-      
-      {/* Game buttons */}
+
+      {/* Buttons */}
       <div className="mt-4 flex space-x-4 relative z-10">
         <button
           className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded shadow-lg"
@@ -535,17 +443,15 @@ const LetterDropGame = () => {
         >
           Drop
         </button>
-        
         <button
           className={`bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded shadow-lg ${
-            selectedCells.length < 3 ? 'opacity-50 cursor-not-allowed' : ''
+            selectedCells.length < 3 || !isDictionaryLoaded ? 'opacity-50 cursor-not-allowed' : ''
           }`}
           onClick={submitWord}
-          disabled={selectedCells.length < 3}
+          disabled={selectedCells.length < 3 || !isDictionaryLoaded}
         >
           Submit Word
         </button>
-        
         <button
           className={`bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded shadow-lg ${
             deleteChances <= 0 || selectedCells.length !== 1 ? 'opacity-50 cursor-not-allowed' : ''
@@ -556,8 +462,8 @@ const LetterDropGame = () => {
           Delete ({deleteChances})
         </button>
       </div>
-      
-      {/* Game over message */}
+
+      {/* Game over */}
       {gameOver && (
         <div className="mt-6 p-4 bg-gray-800 bg-opacity-80 backdrop-blur-sm text-white rounded text-center shadow-lg relative z-10">
           <h2 className="text-2xl font-bold mb-2">Game Over!</h2>
@@ -570,8 +476,8 @@ const LetterDropGame = () => {
           </button>
         </div>
       )}
-      
-      {/* Game instructions */}
+
+      {/* Instructions */}
       <div className="mt-6 p-4 bg-gray-800 bg-opacity-60 backdrop-blur-sm rounded max-w-md text-sm text-white shadow-lg relative z-10">
         <h3 className="font-bold mb-2">How to Play:</h3>
         <ul className="list-disc pl-4">
@@ -583,8 +489,8 @@ const LetterDropGame = () => {
           <li>Game ends when all columns are full</li>
         </ul>
       </div>
-      
-      {/* Stars background animation style */}
+
+      {/* Background styles */}
       <style jsx>{`
         .stars {
           background-image: 
@@ -599,7 +505,6 @@ const LetterDropGame = () => {
           animation: twinkle 5s ease-in-out infinite;
           opacity: 0.5;
         }
-
         @keyframes twinkle {
           0% { opacity: 0.5; }
           50% { opacity: 0.8; }
